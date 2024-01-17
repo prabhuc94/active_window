@@ -112,13 +112,15 @@ void ActiveWindowPlugin::HandleMethodCall(
 
         HWND hwnd=GetForegroundWindow();
         std::string exe = ProcessName(hwnd);
+        LPCSTR pointer = exe.c_str();
+        std::string name = PathFindFileNameA(pointer);
 
         std::wstring windowTitle = GetWindowStringText(hwnd);
         std::string title = utf8_encode(windowTitle);
 
         flutter::EncodableMap map;
         map[flutter::EncodableValue("exe")] = exe;
-        map[flutter::EncodableValue("name")] = exe;
+        map[flutter::EncodableValue("name")] = name;
         map[flutter::EncodableValue("title")] = title;
 
         result->Success(flutter::EncodableValue(map));

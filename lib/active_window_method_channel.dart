@@ -64,6 +64,7 @@ class MethodChannelActiveWindow extends ActiveWindowPlatform {
   static ActiveWindowInfo fromWindows(dynamic rawResult) {
     final result = WindowsResult.fromJson(json.encode(rawResult));
     return ActiveWindowInfo(
+      rawResult: rawResult.toString(),
       title: result.title ?? 'ERROR',
       bundleId: result.exe,
       appName: result.name,
