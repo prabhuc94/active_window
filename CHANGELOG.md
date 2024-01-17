@@ -5,3 +5,7 @@
 ## 0.0.2
 
 * Simplified app name fetching
+
+## 0.0.3
+
+* Fetching app executable name not fetching while app running in admin mode [Fixed]

@@ -1,6 +1,6 @@
 name: active_window
 description: "Plugin to detect active window"
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/prabhuc94/active_window
 
 environment:

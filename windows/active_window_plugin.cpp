@@ -23,9 +23,14 @@
 #include <vector>
 #include <locale>
 #include <codecvt>
+#include <iostream>
+#include <Lmcons.h>
+#include <ShlObj_core.h>
 
 #pragma comment(lib, "Shlwapi.lib")
 #pragma comment(lib, "Psapi.lib")
+#pragma comment(lib, "Shell32.lib")
+
 
 namespace active_window {
 
@@ -51,6 +56,27 @@ ActiveWindowPlugin::ActiveWindowPlugin() {}
 
 ActiveWindowPlugin::~ActiveWindowPlugin() {}
 
+    std::string GetExeName2(HWND hwnd) {
+        DWORD dwProcId = 0;
+        GetWindowThreadProcessId(hwnd, &dwProcId);
+
+        HANDLE hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, dwProcId);
+        if (hProc) {
+            char buffer[MAX_PATH];
+            if (GetProcessImageFileNameA(hProc, buffer, MAX_PATH) > 0) {
+                // Extract the executable name from the full path
+                std::string fullPath(buffer);
+                size_t lastSlash = fullPath.find_last_of('\\');
+                if (lastSlash != std::string::npos) {
+                    return fullPath.substr(lastSlash + 1);
+                }
+            }
+            CloseHandle(hProc);
+        }
+
+        return "";  // Unable to retrieve the executable name
+    }
+
     std::string GetExeName(HWND hwnd)
     {
         char buffer[MAX_PATH] = {0};
@@ -59,8 +85,28 @@ ActiveWindowPlugin::~ActiveWindowPlugin() {}
         GetWindowThreadProcessId(hwnd, &dwProcId);
 
         HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ , FALSE, dwProcId);
-        GetModuleFileNameA((HMODULE)hProc, buffer, MAX_PATH);
-        CloseHandle(hProc);
+        if (hProc) {
+            if (IsUserAnAdmin()) {
+                // If running as administrator, try adjusting token privileges
+                HANDLE hToken;
+                if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken)) {
+                    TOKEN_PRIVILEGES tp;
+                    tp.PrivilegeCount = 1;
+                    LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &tp.Privileges[0].Luid);
+                    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+                    AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), NULL, NULL);
+
+                    CloseHandle(hToken);
+                    if (GetModuleFileNameExA(hProc, 0, buffer, MAX_PATH) == 0) {
+                        // Handle error getting executable name
+                        std::cerr << "Error getting executable name: " << GetLastError() << std::endl;
+                    }
+                }
+            }
+            GetModuleFileNameA((HMODULE)hProc, buffer, MAX_PATH);
+            CloseHandle(hProc);
+        }
         std::string s(buffer);
         return s;
     }
@@ -111,6 +157,7 @@ void ActiveWindowPlugin::HandleMethodCall(
     if (method_call.method_name().compare("getActiveWindowInfo") == 0) {
 
         HWND hwnd=GetForegroundWindow();
+        std::string executable = GetExeName2(hwnd);
         std::string exe = ProcessName(hwnd);
         LPCSTR pointer = exe.c_str();
         std::string name = PathFindFileNameA(pointer);
@@ -119,8 +166,8 @@ void ActiveWindowPlugin::HandleMethodCall(
         std::string title = utf8_encode(windowTitle);
 
         flutter::EncodableMap map;
-        map[flutter::EncodableValue("exe")] = exe;
-        map[flutter::EncodableValue("name")] = name;
+        map[flutter::EncodableValue("exe")] = name;
+        map[flutter::EncodableValue("name")] = executable;
         map[flutter::EncodableValue("title")] = title;
 
         result->Success(flutter::EncodableValue(map));
